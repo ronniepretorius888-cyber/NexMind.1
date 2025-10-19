@@ -1,75 +1,80 @@
 import express from "express";
 import cors from "cors";
-import path from "path";
-import { fileURLToPath } from "url";
-import OpenAI from "openai";
 import dotenv from "dotenv";
+import OpenAI from "openai";
 
 dotenv.config();
 const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Static file serving
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-app.use(express.static(path.join(__dirname, "public")));
-
-// Initialize OpenAI client
+// --- Initialize OpenAI Client ---
 const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
+  apiKey: process.env.OPENAI_API_KEY
 });
 
-// Smart AI endpoint
+// --- Simple in-memory chat memory (temporary, per server run) ---
+let chatMemory = {};
+
+// --- API Route ---
 app.post("/api/data", async (req, res) => {
   try {
-    const { userInput, tone, memory } = req.body;
+    const { userInput, tone, userId } = req.body;
 
-    // Build a personality-aware system prompt
-    const tonePrompts = {
-      humorous: "Respond with clever humor and light sarcasm.",
-      supportive: "Be kind, warm, and motivational. Offer encouragement.",
-      creative: "Be imaginative, poetic, and metaphorical.",
-      informative: "Be factual, structured, and helpful.",
-      neutral: "Be balanced and concise.",
-      oracle: "Speak with mystical wisdom, as though channeling higher insight.",
-      auto: "Match the user’s tone naturally, adapting as they speak.",
+    // Initialize memory for new user
+    if (!chatMemory[userId]) chatMemory[userId] = [];
+
+    // Store the user's new input
+    chatMemory[userId].push({ role: "user", content: userInput });
+
+    // Determine tone and build dynamic system message
+    const toneStyles = {
+      auto: "Adapt naturally to the user's message and context.",
+      humorous: "Be playful and witty.",
+      supportive: "Be gentle, positive, and encouraging.",
+      creative: "Be imaginative and expressive.",
+      informative: "Be factual, detailed, and educational.",
+      neutral: "Be direct and professional."
     };
 
-    const systemPrompt = `
-      You are NexMind.One — an adaptive AI oracle.
-      You remember previous conversation context and respond intelligently.
-      Tone: ${tonePrompts[tone] || "Be insightful and balanced."}
-    `;
+    const tonePrompt = toneStyles[tone] || toneStyles.auto;
 
-    const messages = [
-      { role: "system", content: systemPrompt },
-      ...(memory || []).map((m) => ({
-        role: m.role,
-        content: m.message,
-      })),
-      { role: "user", content: userInput },
+    // Build conversation context
+    const conversation = [
+      {
+        role: "system",
+        content: `You are NexMind.One — The Oracle of Insight. You are adaptive, wise, and emotionally intelligent. Your personality should evolve slightly with each user based on their tone and language. ${tonePrompt}`
+      },
+      ...chatMemory[userId]
     ];
 
+    // Call OpenAI API
     const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
-      messages,
-      temperature: 0.8,
+      messages: conversation,
+      temperature: 0.8
     });
 
-    const aiResponse = completion.choices[0].message.content.trim();
+    const reply = completion.choices[0].message.content;
 
-    res.json({ response: aiResponse });
-  } catch (err) {
-    console.error("AI Error:", err);
-    res.status(500).json({ response: "⚠️ Something went wrong with the Oracle." });
+    // Store the reply in memory
+    chatMemory[userId].push({ role: "assistant", content: reply });
+
+    res.json({ response: reply });
+  } catch (error) {
+    console.error("❌ Error:", error);
+    res.status(500).json({ error: "Something went wrong with NexMind.One." });
   }
 });
 
-// Default route for homepage
+// --- Root route for Render check ---
 app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
+  res.send(`
+    <h1>🚀 Welcome to NexMind.One</h1>
+    <p>The Oracle of Insight — your adaptive AI companion</p>
+    <p>Try the API at <code>/api/data</code></p>
+  `);
 });
 
 const PORT = process.env.PORT || 10000;
-app.listen(PORT, () => console.log(`✅ NexMind.One running on port ${PORT}`));
+app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
