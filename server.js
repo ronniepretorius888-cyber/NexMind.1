@@ -1,59 +1,36 @@
-// AI endpoint with tone and personality adaptation
-app.post("/api/data", async (req, res) => {
-  const { userInput, tone = "default", memory = [] } = req.body;
+import express from "express";
+import cors from "cors";
+import path from "path";
+import { fileURLToPath } from "url";
 
-  // Analyze user tone based on message patterns
-  const toneProfile = tone === "auto"
-    ? analyzeTone(userInput)
-    : tone;
+const app = express();
+app.use(cors());
+app.use(express.json());
 
-  const personalityPrompt = getPersonalityPrompt(toneProfile);
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+app.use(express.static(path.join(__dirname, "public")));
 
-  try {
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content: `You are NexMind: The Oracle of Insight — an adaptive, wise AI that learns from users. Speak in the user's preferred tone (${toneProfile}). When the user seems emotional, reply empathetically. When they are curious, reply with inspiration. You have memory of previous messages.`,
-        },
-        {
-          role: "assistant",
-          content: `Here is the current user personality profile:\n${JSON.stringify(memory.slice(-4))}`,
-        },
-        {
-          role: "user",
-          content: userInput,
-        },
-      ],
-    });
+app.post("/api/data", (req, res) => {
+  const { userInput, tone, memory } = req.body;
 
-    const aiResponse = completion.choices[0].message.content;
-    res.json({ response: aiResponse, toneUsed: toneProfile });
-  } catch (error) {
-    console.error("Error with OpenAI API:", error);
-    res.status(500).json({ response: "⚠️ Oracle encountered a glitch." });
-  }
+  const tones = {
+    humorous: "😂 Haha, here’s a witty thought:",
+    supportive: "💖 Don’t worry, here’s some encouragement:",
+    creative: "🎨 Let’s think outside the box:",
+    informative: "📘 Here’s some useful info:",
+    neutral: "🤖 Here’s a straightforward reply:",
+  };
+
+  const prefix = tones[tone] || "🔮 The Oracle whispers:";
+  const response = `${prefix} ${userInput.toUpperCase()} — decoded by NexMind.`;
+
+  res.json({ response });
 });
 
-// --- Simple Tone Analysis ---
-function analyzeTone(text) {
-  text = text.toLowerCase();
-  if (text.includes("😂") || text.includes("lol") || text.includes("funny")) return "humorous";
-  if (text.includes("help") || text.includes("confused")) return "supportive";
-  if (text.includes("what if") || text.includes("maybe")) return "creative";
-  if (text.includes("please explain") || text.includes("?")) return "informative";
-  return "neutral";
-}
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "public", "index.html"));
+});
 
-// --- Define Personalities ---
-function getPersonalityPrompt(tone) {
-  const personalities = {
-    humorous: "Use light humor and clever analogies. Be playful and friendly.",
-    supportive: "Be warm, encouraging, and emotionally intelligent.",
-    creative: "Be imaginative, visionary, and exploratory.",
-    informative: "Be detailed, calm, and precise like a teacher.",
-    neutral: "Be balanced, conversational, and thoughtful.",
-  };
-  return personalities[tone] || personalities.neutral;
-}
+const PORT = process.env.PORT || 10000;
+app.listen(PORT, () => console.log(`✅ NexMind.One running on port ${PORT}`));
