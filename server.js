@@ -1,26 +1,13 @@
-import express from "express";
-import cors from "cors";
-import path from "path";
-import { fileURLToPath } from "url";
-import OpenAI from "openai";
-
-const app = express();
-app.use(cors());
-app.use(express.json());
-
-// File path setup
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-app.use(express.static(path.join(__dirname, "public")));
-
-// --- OpenAI Setup ---
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
-// AI endpoint
+// AI endpoint with tone and personality adaptation
 app.post("/api/data", async (req, res) => {
-  const { userInput } = req.body;
+  const { userInput, tone = "default", memory = [] } = req.body;
+
+  // Analyze user tone based on message patterns
+  const toneProfile = tone === "auto"
+    ? analyzeTone(userInput)
+    : tone;
+
+  const personalityPrompt = getPersonalityPrompt(toneProfile);
 
   try {
     const completion = await openai.chat.completions.create({
@@ -28,8 +15,11 @@ app.post("/api/data", async (req, res) => {
       messages: [
         {
           role: "system",
-          content:
-            "You are NexMind, an intelligent and kind assistant that helps users think creatively, solve problems, and stay positive.",
+          content: `You are NexMind: The Oracle of Insight — an adaptive, wise AI that learns from users. Speak in the user's preferred tone (${toneProfile}). When the user seems emotional, reply empathetically. When they are curious, reply with inspiration. You have memory of previous messages.`,
+        },
+        {
+          role: "assistant",
+          content: `Here is the current user personality profile:\n${JSON.stringify(memory.slice(-4))}`,
         },
         {
           role: "user",
@@ -39,22 +29,31 @@ app.post("/api/data", async (req, res) => {
     });
 
     const aiResponse = completion.choices[0].message.content;
-    res.json({ response: aiResponse });
+    res.json({ response: aiResponse, toneUsed: toneProfile });
   } catch (error) {
     console.error("Error with OpenAI API:", error);
-    res
-      .status(500)
-      .json({ response: "⚠️ Sorry, NexMind encountered a small glitch." });
+    res.status(500).json({ response: "⚠️ Oracle encountered a glitch." });
   }
 });
 
-// Default route for homepage
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
-});
+// --- Simple Tone Analysis ---
+function analyzeTone(text) {
+  text = text.toLowerCase();
+  if (text.includes("😂") || text.includes("lol") || text.includes("funny")) return "humorous";
+  if (text.includes("help") || text.includes("confused")) return "supportive";
+  if (text.includes("what if") || text.includes("maybe")) return "creative";
+  if (text.includes("please explain") || text.includes("?")) return "informative";
+  return "neutral";
+}
 
-// Start server
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () =>
-  console.log(`✅ NexMind.1 AI Server running on port ${PORT}`)
-);
+// --- Define Personalities ---
+function getPersonalityPrompt(tone) {
+  const personalities = {
+    humorous: "Use light humor and clever analogies. Be playful and friendly.",
+    supportive: "Be warm, encouraging, and emotionally intelligent.",
+    creative: "Be imaginative, visionary, and exploratory.",
+    informative: "Be detailed, calm, and precise like a teacher.",
+    neutral: "Be balanced, conversational, and thoughtful.",
+  };
+  return personalities[tone] || personalities.neutral;
+}
