@@ -57,22 +57,28 @@ export async function runTask(userInput, tone) {
 
   console.log(`🧭 Detected intent: ${intent} → Model: ${model} (${reasoning.effort})`);
 
-  // Image generation route
+  // Image generation path (placeholder)
   if (intent === "image") {
     return {
       model,
-      response: `🖼️ Image generation would be handled here (gpt-image-1-mini)`,
+      intent,
+      reasoning: reasoning.effort,
+      response: "🖼️ Image generation handled here (gpt-image-1-mini).",
       tokensUsed: 0,
       estimatedCost: getModelPrice(model, "perImage"),
     };
   }
 
-  // Text / reasoning route
+  // Text / reasoning models
   const response = await openai.responses.create({
     model,
     reasoning,
     input: [
-      { role: "system", content: "You are NexMind.One — the Oracle of Insight, adaptive and self-optimizing." },
+      {
+        role: "system",
+        content:
+          "You are NexMind.One — the Oracle of Insight. Adaptive, self-optimizing, and context-aware.",
+      },
       { role: "user", content: `${tone ? tone + "\n" : ""}${userInput}` },
     ],
   });
@@ -92,4 +98,4 @@ export async function runTask(userInput, tone) {
     tokensUsed: tokens,
     estimatedCost: costEstimate,
   };
-                              }
+}
