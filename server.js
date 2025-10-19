@@ -1,16 +1,15 @@
-// === NexMind.One | Stable Production Build ===
-
+// === NexMind.One | Unified AI Server ===
 import express from "express";
 import cors from "cors";
 import path from "path";
 import dotenv from "dotenv";
 import { fileURLToPath } from "url";
 import OpenAI from "openai";
+import { MODEL_PRICING, PROFIT_MARGIN, getModelPrice } from "./pricing.js";
 
-// Load environment variables
 dotenv.config();
 
-// --- Initialize Express ---
+// --- Express Setup ---
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const app = express();
@@ -18,16 +17,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
-// --- PayFast Configuration ---
-const PAYFAST_CONFIG = {
-  merchant_id: process.env.PAYFAST_MERCHANT_ID,
-  merchant_key: process.env.PAYFAST_MERCHANT_KEY,
-  public_key: process.env.PAYFAST_PUBLIC_KEY,
-  secret_key: process.env.PAYFAST_SECRET_KEY,
-  test_mode: process.env.PAYFAST_TEST_MODE === "true",
-};
-
-// --- Environment Checks ---
+// --- Verify Environment Variables ---
 if (!process.env.OPENAI_API_KEY) {
   console.error("❌ Missing OPENAI_API_KEY in Render environment!");
 } else {
@@ -43,15 +33,25 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-// --- Root Route ---
-app.get("/", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
+// --- Pricing Route ---
+app.get("/api/pricing", (req, res) => {
+  const adjusted = {};
+  for (const [model, price] of Object.entries(MODEL_PRICING)) {
+    adjusted[model] = {};
+    for (const [type, cost] of Object.entries(price)) {
+      adjusted[model][type] = (cost * (1 + PROFIT_MARGIN)).toFixed(4);
+    }
+  }
+  res.json({
+    margin: `${(PROFIT_MARGIN * 100).toFixed(0)}%`,
+    pricing: adjusted,
+  });
 });
 
-// --- Debug Route (Temporary) ---
+// --- Debug Route ---
 app.get("/debug/env", (req, res) => {
   res.json({
-    OPENAI_API_KEY: process.env.OPENAI_API_KEY ? "✅ Loaded" : "❌ Missing",
+    OPENAI_API_KEY: !!process.env.OPENAI_API_KEY,
     PAYFAST_MERCHANT_ID: !!process.env.PAYFAST_MERCHANT_ID,
     PAYFAST_MERCHANT_KEY: !!process.env.PAYFAST_MERCHANT_KEY,
     PAYFAST_PUBLIC_KEY: !!process.env.PAYFAST_PUBLIC_KEY,
@@ -61,15 +61,24 @@ app.get("/debug/env", (req, res) => {
   });
 });
 
-// --- AI Route ---
+// --- Debug OpenAI Test Route ---
+app.get("/debug/openai", async (req, res) => {
+  try {
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{ role: "user", content: "Say 'NexMind.One is alive!'" }],
+    });
+    res.json({ testReply: response.choices[0].message.content });
+  } catch (err) {
+    res.json({ error: err.message });
+  }
+});
+
+// --- Main AI Route ---
 app.post("/api/data", async (req, res) => {
   try {
     const { userInput, tone } = req.body;
-    console.log("📩 Incoming request:", { userInput, tone });
-
-    if (!process.env.OPENAI_API_KEY) {
-      throw new Error("❌ OPENAI_API_KEY is missing in Render environment!");
-    }
+    const model = "gpt-4o-mini";
 
     const tonePrompt = {
       auto: "",
@@ -80,24 +89,24 @@ app.post("/api/data", async (req, res) => {
       neutral: "Respond neutrally and clearly.",
     }[tone || "auto"];
 
-    // --- Call OpenAI API ---
     const response = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+      model,
       messages: [
         {
           role: "system",
-          content:
-            "You are NexMind.One — The Oracle of Insight. A smart, adaptive AI companion.",
+          content: "You are NexMind.One — The Oracle of Insight, a smart, adaptive AI companion.",
         },
         { role: "user", content: `${tonePrompt}\nUser: ${userInput}` },
       ],
     });
 
-    const output =
-      response.choices?.[0]?.message?.content || "No response received.";
-    console.log("✅ OpenAI reply:", output);
+    const output = response.choices?.[0]?.message?.content || "No response received.";
+    const inputCost = getModelPrice(model, "input");
+    const outputCost = getModelPrice(model, "output");
 
-    res.json({ response: output });
+    console.log(`💸 Model ${model}: $${inputCost}/M input | $${outputCost}/M output (with ${PROFIT_MARGIN * 100}% margin)`);
+
+    res.json({ response: output, model, inputCost, outputCost });
   } catch (error) {
     console.error("💥 Full server error:", error);
     res.status(500).json({
