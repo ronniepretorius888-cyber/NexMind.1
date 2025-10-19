@@ -3,124 +3,128 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>🚀 NexMind.One | The Oracle of Insight</title>
+  <title>🤖 NexMind.One | The Oracle of Insight</title>
   <style>
     body {
-      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-      background-color: #0d1117;
-      color: #f0f6fc;
+      font-family: "Segoe UI", sans-serif;
+      background-color: #0e0e0e;
+      color: #e2e2e2;
       text-align: center;
       margin: 0;
       padding: 0;
     }
 
     h1 {
+      font-size: 2rem;
+      color: #00ffaa;
       margin-top: 2rem;
-      color: #00ffc3;
+    }
+
+    p {
+      color: #a0a0a0;
+      margin-bottom: 1.5rem;
+    }
+
+    .container {
+      background: #1a1a1a;
+      border-radius: 15px;
+      padding: 20px;
+      width: 90%;
+      max-width: 500px;
+      margin: 0 auto;
+      box-shadow: 0 0 20px #00ffaa33;
     }
 
     select, input, button {
-      padding: 10px;
-      margin: 10px;
+      font-size: 1rem;
       border-radius: 8px;
       border: none;
-      font-size: 1rem;
-    }
-
-    input {
-      width: 70%;
-      background-color: #161b22;
-      color: white;
+      padding: 10px;
+      margin: 10px 0;
+      width: 90%;
+      max-width: 400px;
     }
 
     select {
-      background-color: #161b22;
-      color: #00ffc3;
+      background-color: #222;
+      color: #00ffaa;
+    }
+
+    input {
+      background-color: #111;
+      color: #eee;
+      border: 1px solid #00ffaa33;
     }
 
     button {
-      background-color: #00ffc3;
-      color: #0d1117;
+      background-color: #00ffaa;
+      color: #111;
+      font-weight: bold;
       cursor: pointer;
-      transition: 0.3s;
+      transition: 0.2s;
     }
 
     button:hover {
-      background-color: #00c6a0;
+      background-color: #00ffcc;
     }
 
-    .response {
-      background-color: #161b22;
-      border-radius: 10px;
+    .response-box {
+      background-color: #111;
+      margin-top: 1.5rem;
       padding: 15px;
-      margin: 20px auto;
-      width: 80%;
-      text-align: left;
-      line-height: 1.6;
-      color: #f0f6fc;
-      box-shadow: 0 0 10px rgba(0, 255, 195, 0.2);
+      border-radius: 10px;
+      border: 1px solid #00ffaa33;
+      box-shadow: inset 0 0 10px #00ffaa22;
     }
+
+    .label {
+      font-weight: bold;
+      color: #00ffaa;
+      display: block;
+      margin-bottom: 5px;
+    }
+
   </style>
 </head>
-
 <body>
+
   <h1>🤖 Welcome to NexMind.One</h1>
   <p>The Oracle of Insight — your adaptive AI companion</p>
 
-  <div>
-    <label for="toneSelector">Select a Tone:</label>
+  <div class="container">
+    <label for="toneSelector" class="label">Select a Tone:</label>
     <select id="toneSelector">
-      <option value="auto">🧠 Auto-Adapt</option>
-      <option value="humorous">😂 Humorous</option>
+      <option value="auto">🎭 Auto-Adapt</option>
+      <option value="humorous">😆 Humorous</option>
       <option value="supportive">💖 Supportive</option>
       <option value="creative">🎨 Creative</option>
-      <option value="informative">📘 Informative</option>
+      <option value="informative">🧠 Informative</option>
       <option value="neutral">🌿 Neutral</option>
     </select>
+
+    <br />
+
+    <input type="text" id="userInput" placeholder="Ask NexMind.One anything..." />
+    <br />
+    <button onclick="sendData()">Ask</button>
+
+    <div id="response" class="response-box"></div>
   </div>
 
-  <input type="text" id="userInput" placeholder="Ask NexMind something..." />
-  <button onclick="sendData()">Ask</button>
-
-  <div class="response" id="responseBox">💬 Waiting for your message...</div>
-
   <script>
-    const chatHistory = [];
-    let autoTone = "neutral";
-
     async function sendData() {
-      const userInput = document.getElementById("userInput").value;
-      let tone = document.getElementById("toneSelector").value;
-      if (!userInput.trim()) return alert("Please enter a message!");
+      const userInput = document.getElementById("userInput").value.trim();
+      const tone = document.getElementById("toneSelector").value;
 
-      // If Auto-Adapt is selected, adjust tone dynamically
-      if (tone === "auto") {
-        tone = detectTone(userInput);
-        autoTone = tone;
+      if (!userInput) {
+        document.getElementById("response").innerText = "⚠️ Please type a question for the Oracle.";
+        return;
       }
 
-      chatHistory.push({ role: "user", message: userInput });
+      // Create or reuse a unique user ID
+      if (!localStorage.getItem("userId")) {
+        localStorage.setItem("userId", Math.random().toString(36).substring(2, 15));
+      }
+      const userId = localStorage.getItem("userId");
 
-      const res = await fetch("/api/data", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ userInput, tone, memory: chatHistory }),
-      });
-
-      const data = await res.json();
-      const responseBox = document.getElementById("responseBox");
-      responseBox.innerHTML = `<strong>NexMind:</strong> ${data.response}`;
-      chatHistory.push({ role: "assistant", message: data.response });
-    }
-
-    function detectTone(text) {
-      text = text.toLowerCase();
-      if (text.includes("joke") || text.includes("funny")) return "humorous";
-      if (text.includes("help") || text.includes("advice")) return "supportive";
-      if (text.includes("idea") || text.includes("imagine")) return "creative";
-      if (text.includes("explain") || text.includes("how")) return "informative";
-      return autoTone;
-    }
-  </script>
-</body>
-</html>
+      document.getElementById("response").inner
