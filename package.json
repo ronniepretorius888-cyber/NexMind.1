@@ -1,4 +1,5 @@
 {
+  "type": "module",
   "name": "nexmind-one",
   "version": "1.0.0",
   "description": "Next-generation AI-powered productivity and funding platform",
