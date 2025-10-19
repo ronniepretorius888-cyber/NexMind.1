@@ -1,5 +1,4 @@
-// --- NexMind.One | Unified AI + PayFast Integration ---
-// Imports
+// === NexMind.One | Unified AI + Payments Server ===
 import express from "express";
 import cors from "cors";
 import path from "path";
@@ -7,136 +6,72 @@ import { fileURLToPath } from "url";
 import dotenv from "dotenv";
 import OpenAI from "openai";
 
-// Load environment variables from Render (or local .env if testing)
 dotenv.config();
 
-// Initialize Express
+// === File Path Setup ===
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// === Initialize Express ===
 const app = express();
 app.use(cors());
 app.use(express.json());
-
-// Static file directory setup
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 app.use(express.static(path.join(__dirname, "public")));
 
-// --- PayFast Environment Configuration ---
+// === Load API Keys & Config ===
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY
+});
+
+// PayFast Config (environment handled by Render)
 const PAYFAST_CONFIG = {
   merchant_id: process.env.PAYFAST_MERCHANT_ID,
   merchant_key: process.env.PAYFAST_MERCHANT_KEY,
   public_key: process.env.PAYFAST_PUBLIC_KEY,
   secret_key: process.env.PAYFAST_SECRET_KEY,
-  test_mode: process.env.PAYFAST_TEST_MODE === "true",
+  test_mode: process.env.PAYFAST_TEST_MODE === "true"
 };
 
-// --- Initialize OpenAI ---
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
-
-// --- API Route: NexMind AI Brain ---
+// === API Route: Chat with NexMind ===
 app.post("/api/data", async (req, res) => {
   try {
-    const { userInput = "", tone = "neutral", userId } = req.body;
+    const { userInput, tone } = req.body;
 
-    if (!userInput) {
-      return res.status(400).json({ error: "No input provided." });
-    }
-
-    // 🎭 Tone personality setup
-    const toneGuide = {
-      humorous: "Be funny, playful, and witty in your tone.",
-      supportive: "Be kind, uplifting, and compassionate.",
-      creative: "Think abstractly, imaginatively, and uniquely.",
-      informative: "Be factual, concise, and professional.",
-      neutral: "Be calm, balanced, and straightforward.",
-      auto: "Adapt naturally based on context.",
+    const tonePrompts = {
+      humorous: "respond with a joke and light humor.",
+      supportive: "respond with encouragement and kindness.",
+      creative: "respond with imaginative and artistic ideas.",
+      informative: "respond with clarity and useful information.",
+      neutral: "respond in a balanced, factual tone.",
+      auto: "choose the best tone naturally."
     };
 
-    const systemPrompt = `You are NexMind — the Oracle of Insight. Your purpose is to provide clear, engaging, and adaptive AI responses. 
-    Maintain the requested tone: ${toneGuide[tone] || "neutral"}.
-    Always respond as a wise, intelligent assistant with warmth and confidence.`;
+    const systemPrompt = `You are NexMind.One, The Oracle of Insight. Adapt your tone as follows: ${tonePrompts[tone] || tonePrompts.auto}`;
 
-    // 🔮 OpenAI response
-    const aiResponse = await openai.chat.completions.create({
+    const completion = await openai.chat.completions.create({
       model: "gpt-4o-mini",
       messages: [
         { role: "system", content: systemPrompt },
-        { role: "user", content: userInput },
-      ],
-      temperature: 0.9,
-      max_tokens: 250,
+        { role: "user", content: userInput }
+      ]
     });
 
-    const output =
-      aiResponse.choices?.[0]?.message?.content ||
-      "🤖 Hmm... my circuits might need a reboot. Try again!";
+    const aiResponse = completion.choices[0].message.content;
+    res.json({ response: aiResponse });
 
-    console.log(`💬 [${tone}] User(${userId || "anon"}): ${userInput}`);
-
-    res.json({ response: output });
-  } catch (err) {
-    console.error("❌ AI Error:", err);
-    res.status(500).json({
-      error: "Server or OpenAI connection issue",
-      details: err.message,
-    });
+  } catch (error) {
+    console.error("Error:", error);
+    res.status(500).json({ error: "AI engine is temporarily unavailable." });
   }
 });
 
-// --- API Route: PayFast Payment Initialization ---
-app.post("/api/payfast/initiate", (req, res) => {
-  try {
-    const { amount, item_name, return_url, cancel_url, notify_url } = req.body;
+// === PayFast Sandbox Status ===
+if (PAYFAST_CONFIG.test_mode) {
+  console.log("⚙️ Running in PayFast Sandbox Mode");
+}
 
-    if (!amount || !item_name) {
-      return res
-        .status(400)
-        .json({ error: "Missing required payment parameters." });
-    }
-
-    const payfastURL = PAYFAST_CONFIG.test_mode
-      ? "https://sandbox.payfast.co.za/eng/process"
-      : "https://www.payfast.co.za/eng/process";
-
-    const params = new URLSearchParams({
-      merchant_id: PAYFAST_CONFIG.merchant_id,
-      merchant_key: PAYFAST_CONFIG.merchant_key,
-      amount,
-      item_name,
-      return_url: return_url || "https://nexmind1.onrender.com/thank-you",
-      cancel_url: cancel_url || "https://nexmind1.onrender.com/cancel",
-      notify_url: notify_url || "https://nexmind1.onrender.com/notify",
-    });
-
-    const fullURL = `${payfastURL}?${params.toString()}`;
-
-    console.log("💰 PayFast payment initialized:", fullURL);
-
-    res.json({ success: true, url: fullURL });
-  } catch (err) {
-    console.error("❌ PayFast Error:", err);
-    res.status(500).json({ error: "Failed to initiate PayFast payment." });
-  }
-});
-
-// --- Health Check ---
-app.get("/health", (req, res) => {
-  res.json({ status: "ok", uptime: process.uptime() });
-});
-
-// --- Fallback Route ---
-app.get("*", (req, res) => {
-  res.sendFile(path.join(__dirname, "public", "index.html"));
-});
-
-// --- Start the Server ---
+// === Start Server ===
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
-  console.log(`✅ NexMind.One is live on port ${PORT}`);
-  console.log(
-    PAYFAST_CONFIG.test_mode
-      ? "⚙️ Running in PayFast Sandbox Mode"
-      : "💵 Running in PayFast Live Mode"
-  );
+  console.log(`✅ NexMind.One server running on port ${PORT}`);
 });
