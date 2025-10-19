@@ -1,6 +1,6 @@
-// === NexMind.One | Model Pricing Config ===
+ // === NexMind.One | Model Pricing Config ===
 
-export const PROFIT_MARGIN = 0.2; // 20%
+export const PROFIT_MARGIN = 0.2; // 20% profit margin
 
 export const MODEL_PRICING = {
   // --- GPT-5 family ---
@@ -18,7 +18,6 @@ export const MODEL_PRICING = {
 
   // --- GPT-3.5 legacy ---
   "gpt-3.5-turbo": { input: 0.25, output: 0.75 },
-  "gpt-3.5-turbo-0125": { input: 0.25, output: 0.75 },
 
   // --- o-series ---
   "o1": { input: 7.50, output: 30.00 },
@@ -27,17 +26,15 @@ export const MODEL_PRICING = {
   "o3-pro": { input: 10.00, output: 40.00 },
   "o4-mini": { input: 0.55, output: 2.20 },
 
-  // --- Image generation ---
+  // --- Image & Audio examples ---
   "gpt-image-1": { perImage: 0.04 },
   "gpt-image-1-mini": { perImage: 0.01 },
-
-  // --- Audio ---
   "gpt-4o-mini-tts": { perMin: 0.015 },
   "gpt-4o-mini-transcribe": { perMin: 0.003 },
 };
 
-// Function to calculate adjusted pricing
+// Helper: get price with profit
 export function getModelPrice(model, type = "input") {
   const base = MODEL_PRICING[model]?.[type] || 0;
   return (base * (1 + PROFIT_MARGIN)).toFixed(4);
-             }
+}
