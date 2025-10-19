@@ -1,84 +1,123 @@
-// === NexMind.One | Stable Production Build ===
+// server.js (paste entire file, replace existing)
 import express from "express";
 import cors from "cors";
 import path from "path";
-import { fileURLToPath } from "url";
 import dotenv from "dotenv";
+import { fileURLToPath } from "url";
 import OpenAI from "openai";
 
 dotenv.config();
 
-// === Path setup ===
+// --- Basic app setup ---
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
-
-// === Initialize Express ===
 const app = express();
 app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
-// === Verify environment variables ===
-if (!process.env.OPENAI_API_KEY) {
-  console.error("❌ OPENAI_API_KEY missing — please add it in Render → Environment");
-} else {
-  console.log("✅ OpenAI key loaded successfully");
-}
-
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY || "missing_key",
+// --- Quick health check ---
+app.get("/health", (req, res) => {
+  res.json({ ok: true, now: new Date().toISOString() });
 });
 
-// === PayFast Config ===
-const PAYFAST_CONFIG = {
-  merchant_id: process.env.PAYFAST_MERCHANT_ID || "",
-  merchant_key: process.env.PAYFAST_MERCHANT_KEY || "",
-  public_key: process.env.PAYFAST_PUBLIC_KEY || "",
-  secret_key: process.env.PAYFAST_SECRET_KEY || "",
-  test_mode: process.env.PAYFAST_TEST_MODE === "true",
-};
+// --- Environment verification (logs on start) ---
+const requiredEnv = ["OPENAI_API_KEY"];
+let missing = requiredEnv.filter((k) => !process.env[k]);
+if (missing.length) {
+  console.error("❌ Missing required env vars:", missing.join(", "));
+} else {
+  console.log("✅ All required env vars present");
+}
 
-if (PAYFAST_CONFIG.test_mode) {
+// PayFast debug (optional)
+if (process.env.PAYFAST_TEST_MODE === "true") {
   console.log("⚙️ Running in PayFast Sandbox Mode");
 }
 
-// === Chat Endpoint ===
+// --- Initialize OpenAI client ---
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
+
+// --- POST API: receive user query and return model answer ---
 app.post("/api/data", async (req, res) => {
   try {
-    const { userInput, tone } = req.body;
+    // Log incoming request for debugging
+    console.log("➡️ /api/data called — body:", JSON.stringify(req.body));
+
+    const { userInput, tone } = req.body ?? {};
+    if (!userInput || typeof userInput !== "string") {
+      return res.status(400).json({ error: "Missing or invalid userInput" });
+    }
 
     const tonePrompts = {
-      humorous: "respond with a joke and light humor.",
-      supportive: "respond with encouragement and kindness.",
-      creative: "respond with imaginative and artistic ideas.",
-      informative: "respond with clarity and useful information.",
-      neutral: "respond in a balanced, factual tone.",
-      auto: "choose the best tone naturally.",
+      auto: "",
+      humorous: "Respond in a funny, witty tone.",
+      supportive: "Respond in a kind and supportive tone.",
+      creative: "Respond in a creative, imaginative way.",
+      informative: "Respond in an informative, factual tone.",
+      neutral: "Respond neutrally and clearly.",
     };
+    const tonePrompt = tonePrompts[tone] ?? tonePrompts["auto"];
 
-    const systemPrompt = `You are NexMind.One, The Oracle of Insight. Adapt your tone as follows: ${tonePrompts[tone] || tonePrompts.auto}`;
+    // Create messages array
+    const messages = [
+      {
+        role: "system",
+        content:
+          "You are NexMind.One — the Oracle of Insight: an adaptive AI companion that tailors replies by tone requested.",
+      },
+      {
+        role: "user",
+        content: `${tonePrompt}\nUser: ${userInput}`,
+      },
+    ];
 
-    const completion = await openai.chat.completions.create({
+    // Call the API (robust handling & debugging)
+    console.log("🔎 Calling OpenAI with model gpt-4o-mini ...");
+    const response = await openai.chat.completions.create({
       model: "gpt-4o-mini",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userInput },
-      ],
+      messages,
+      // max_tokens: 300, // optional
     });
 
-    const aiResponse = completion.choices[0].message.content;
-    res.json({ response: aiResponse });
-  } catch (error) {
-    console.error("❌ AI Error:", error.message);
-    res.status(500).json({
-      error: "AI engine error. Please verify OpenAI key or try again later.",
-    });
+    // Log entire response object (very helpful for debugging)
+    console.log("🧾 OpenAI raw response:", JSON.stringify(response, null, 2));
+
+    // Extract reply with fallback options (covers different SDK shapes)
+    let reply = null;
+    // new style: response.choices[0].message.content
+    if (response?.choices?.[0]?.message?.content) {
+      reply = response.choices[0].message.content;
+    }
+    // older style: response.choices[0].text
+    else if (response?.choices?.[0]?.text) {
+      reply = response.choices[0].text;
+    }
+    // some SDK responses contain parts
+    else if (response?.choices?.[0]?.message?.content?.[0]?.content) {
+      reply = response.choices[0].message.content[0].content;
+    }
+
+    // if still null, return the whole choices array (for debugging)
+    if (!reply) {
+      console.warn("⚠️ Could not extract reply; returning choices for debugging.");
+      return res.json({ debug: response.choices ?? response });
+    }
+
+    // Return the reply
+    console.log("✅ Reply extracted:", reply);
+    return res.json({ response: reply });
+  } catch (err) {
+    console.error("❌ /api/data ERROR:", err);
+    // include detailed info for debugging in logs (NOT in user-facing body)
+    return res.status(500).json({ error: "Server error — check logs." });
   }
 });
 
-// === Start Server ===
+// --- Start server ---
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
-  console.log(`✅ NexMind.One server running on port ${PORT}`);
-  console.log("🌍 Visit:", `https://nexmind-1.onrender.com`);
+  console.log(`🚀 NexMind.One server listening on port ${PORT}`);
 });
