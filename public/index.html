@@ -75,6 +75,9 @@
       border-radius: 10px;
       border: 1px solid #00ffaa33;
       box-shadow: inset 0 0 10px #00ffaa22;
+      min-height: 60px;
+      white-space: pre-wrap;
+      text-align: left;
     }
 
     .label {
@@ -84,6 +87,16 @@
       margin-bottom: 5px;
     }
 
+    .loading {
+      color: #00ffaa;
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0% { opacity: 0.3; }
+      50% { opacity: 1; }
+      100% { opacity: 0.3; }
+    }
   </style>
 </head>
 <body>
@@ -102,10 +115,7 @@
       <option value="neutral">🌿 Neutral</option>
     </select>
 
-    <br />
-
     <input type="text" id="userInput" placeholder="Ask NexMind.One anything..." />
-    <br />
     <button onclick="sendData()">Ask</button>
 
     <div id="response" class="response-box"></div>
@@ -115,16 +125,44 @@
     async function sendData() {
       const userInput = document.getElementById("userInput").value.trim();
       const tone = document.getElementById("toneSelector").value;
+      const output = document.getElementById("response");
 
       if (!userInput) {
-        document.getElementById("response").innerText = "⚠️ Please type a question for the Oracle.";
+        output.innerText = "⚠️ Please type a question for the Oracle.";
         return;
       }
 
-      // Create or reuse a unique user ID
-      if (!localStorage.getItem("userId")) {
-        localStorage.setItem("userId", Math.random().toString(36).substring(2, 15));
-      }
-      const userId = localStorage.getItem("userId");
+      output.innerHTML = "<span class='loading'>⏳ Consulting the Oracle...</span>";
 
-      document.getElementById("response").inner
+      try {
+        const res = await fetch("/api/data", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ userInput, tone }),
+        });
+
+        if (!res.ok) {
+          const text = await res.text();
+          throw new Error(`HTTP ${res.status}: ${text}`);
+        }
+
+        const data = await res.json();
+        console.log("🛰️ Response from server:", data);
+
+        if (data.response) {
+          output.innerText = data.response;
+        } else if (data.error) {
+          output.innerText = `❌ Error: ${data.error}`;
+        } else {
+          output.innerText = "🤔 The Oracle is silent... (No response received)";
+        }
+
+      } catch (err) {
+        console.error("💥 Error calling API:", err);
+        output.innerText = `⚠️ Failed to contact the Oracle.\n\nDetails: ${err.message}`;
+      }
+    }
+  </script>
+
+</body>
+</html>
