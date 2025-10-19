@@ -3,17 +3,62 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>NexMind.One</title>
-  <link rel="stylesheet" href="styles.css" />
+  <title>NexMind.1 – AI Demo</title>
+  <style>
+    body {
+      background: #0d1117;
+      color: #e6edf3;
+      font-family: Arial, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+      margin: 0;
+      text-align: center;
+    }
+    input, button {
+      padding: 10px;
+      margin: 10px;
+      border-radius: 5px;
+      border: none;
+      font-size: 16px;
+    }
+    button {
+      background-color: #238636;
+      color: white;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #2ea043;
+    }
+    .response {
+      margin-top: 20px;
+      color: #79c0ff;
+      font-size: 18px;
+    }
+  </style>
 </head>
 <body>
-  <div class="splash">
-    <img src="logo.svg" class="logo" alt="NexMind.One logo" />
-    <h1>Born from struggle. Built with purpose. Made to set you free.</h1>
-    <h2>— R.E.A.L. Pretorius</h2>
-    <div id="funding"></div>
-  </div>
+  <h1>🤖 NexMind.1 AI Demo</h1>
+  <p>Type something and let the AI respond!</p>
+  
+  <input type="text" id="userInput" placeholder="Enter your text here..." />
+  <button onclick="sendData()">Send</button>
 
-  <script type="module" src="app.js"></script>
+  <div class="response" id="response"></div>
+
+  <script>
+    async function sendData() {
+      const userInput = document.getElementById("userInput").value;
+      const res = await fetch("/api/data", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userInput })
+      });
+      const data = await res.json();
+      document.getElementById("response").textContent = data.response;
+    }
+  </script>
 </body>
 </html>
