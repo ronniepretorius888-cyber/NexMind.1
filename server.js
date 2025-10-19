@@ -1,9 +1,18 @@
+
+
 import express from "express";
 import cors from "cors";
+import path from "path";
+import { fileURLToPath } from "url";
 
 const app = express();
 app.use(cors());
 app.use(express.json());
+
+// Set up static file serving (for your frontend)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+app.use(express.static(__dirname + "/public"));
 
 // Simple AI endpoint
 app.post("/api/data", (req, res) => {
@@ -12,9 +21,10 @@ app.post("/api/data", (req, res) => {
   res.json({ response });
 });
 
-// ✅ Correct Render-compatible port setup
-const PORT = process.env.PORT || 3000;
-
-app.listen(PORT, () => {
-  console.log(`✅ Server running on port ${PORT}`);
+// Default route for homepage
+app.get("/", (req, res) => {
+  res.sendFile(path.join(__dirname, "/public/index.html"));
 });
+
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, () => console.log(`✅ Server running on port ${PORT}`));
