@@ -4,25 +4,14 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>🤖 NexMind.One | The Oracle of Insight</title>
-  <style>
-    body { font-family: "Segoe UI", sans-serif; background:#0e0e0e; color:#e2e2e2; text-align:center; margin:0; padding:0;}
-    h1 { color:#00ffaa; margin-top:2rem; }
-    p { color:#a0a0a0; margin-bottom:1.5rem;}
-    .container { background:#1a1a1a; border-radius:15px; padding:20px; width:90%; max-width:500px; margin:0 auto; box-shadow:0 0 20px #00ffaa33;}
-    select, input, button { border-radius:8px; border:none; padding:10px; width:90%; margin:10px 0; font-size:1rem;}
-    select { background:#222; color:#00ffaa;}
-    input { background:#111; color:#eee; border:1px solid #00ffaa33;}
-    button { background:#00ffaa; color:#111; font-weight:bold; cursor:pointer; transition:0.2s;}
-    button:hover { background:#00ffcc;}
-    .response-box { background:#111; margin-top:1.5rem; padding:15px; border-radius:10px; border:1px solid #00ffaa33; box-shadow:inset 0 0 10px #00ffaa22;}
-  </style>
+  <link rel="stylesheet" href="style.css" />
 </head>
 <body>
   <h1>🤖 Welcome to NexMind.One</h1>
   <p>The Oracle of Insight — your adaptive AI companion</p>
 
   <div class="container">
-    <label>Select a Tone:</label>
+    <label class="label" for="toneSelector">Select a Tone:</label>
     <select id="toneSelector">
       <option value="auto">🎭 Auto-Adapt</option>
       <option value="humorous">😆 Humorous</option>
@@ -31,41 +20,13 @@
       <option value="informative">🧠 Informative</option>
       <option value="neutral">🌿 Neutral</option>
     </select>
+
     <input type="text" id="userInput" placeholder="Ask NexMind.One anything..." />
-    <button onclick="sendData()">Ask</button>
+    <button id="askBtn">Ask</button>
+
     <div id="response" class="response-box"></div>
   </div>
 
-  <script>
-    async function sendData() {
-      const userInput = document.getElementById("userInput").value.trim();
-      const tone = document.getElementById("toneSelector").value;
-      const responseBox = document.getElementById("response");
-
-      if (!userInput) {
-        responseBox.innerText = "⚠️ Please ask the Oracle something.";
-        return;
-      }
-
-      responseBox.innerText = "🔮 Consulting the Oracle...";
-
-      try {
-        const res = await fetch("/api/data", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ userInput, tone }),
-        });
-
-        const data = await res.json();
-        if (res.ok) {
-          responseBox.innerHTML = `<strong>✨ Oracle says:</strong><br>${data.response}<br><br><small>Model: ${data.model} | Cost: $${data.inputCost}/M input, $${data.outputCost}/M output</small>`;
-        } else {
-          responseBox.innerText = `⚠️ Oracle error: ${data.error}`;
-        }
-      } catch (err) {
-        responseBox.innerText = `❌ Connection failed: ${err.message}`;
-      }
-    }
-  </script>
+  <script src="script.js"></script>
 </body>
 </html>
