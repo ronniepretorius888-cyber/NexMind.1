@@ -16,9 +16,9 @@ app.use(cors());
 app.use(express.json());
 app.use(express.static(path.join(__dirname, "public")));
 
-// --- Environment check ---
+// --- Environment sanity checks ---
 if (!process.env.OPENAI_API_KEY) {
-  console.error("❌ Missing OPENAI_API_KEY in Render environment!");
+  console.error("❌ Missing OPENAI_API_KEY in environment!");
 } else {
   console.log("✅ OpenAI key loaded successfully");
 }
@@ -27,7 +27,7 @@ if (process.env.PAYFAST_TEST_MODE === "true") {
   console.log("⚙️ Running in PayFast Sandbox Mode");
 }
 
-// --- Main AI route (auto-orchestrated) ---
+// --- Main AI route ---
 app.post("/api/data", async (req, res) => {
   try {
     const { userInput, tone } = req.body;
@@ -42,5 +42,5 @@ app.post("/api/data", async (req, res) => {
 // --- Start server ---
 const PORT = process.env.PORT || 10000;
 app.listen(PORT, () => {
-  console.log(`🚀 NexMind.One server running on port ${PORT}`);
+  console.log(`🚀 NexMind.One running on port ${PORT}`);
 });
