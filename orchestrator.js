@@ -1,101 +1,50 @@
-// === NexMind.One | Auto-Orchestrator Engine ===
+// === NexMind.One | AI Task Orchestrator ===
 import OpenAI from "openai";
-import { getModelPrice } from "./pricing.js";
+import { estimateCost } from "./pricing.js";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-// --- Intent classification ---
-export async function detectIntent(userInput) {
-  const prompt = `
-  Classify the intent of this user request: "${userInput}".
-  Respond with only one of these categories:
-  [chat, creative, code, planning, analysis, image, audio, finance, research].
-  `;
+// === Main orchestration logic ===
+export async function runTask(userInput, tone = "auto") {
+  console.log(`🧭 Incoming request: ${userInput} | Tone: ${tone}`);
+
+  const tonePrompt = {
+    auto: "",
+    humorous: "Respond in a funny, witty tone.",
+    supportive: "Respond kindly and reassuringly.",
+    creative: "Respond with creativity and imagination.",
+    informative: "Respond factually and clearly.",
+    neutral: "Respond neutrally and directly."
+  }[tone || "auto"];
+
+  const model = "gpt-4o-mini"; // best cost/performance balance
+
   try {
-    const intentResponse = await openai.responses.create({
-      model: "gpt-4o-mini",
-      input: [{ role: "user", content: prompt }],
-    });
-    const intent = intentResponse.output_text.trim().toLowerCase();
-    return intent.includes("image") ? "image" : intent;
-  } catch {
-    return "chat"; // fallback
-  }
-}
-
-// --- Model router ---
-export function selectModel(intent) {
-  const routes = {
-    chat: "gpt-4o-mini",
-    creative: "gpt-5-mini",
-    code: "gpt-4.1-mini",
-    planning: "gpt-5",
-    analysis: "o4-mini",
-    image: "gpt-image-1-mini",
-    audio: "gpt-4o-mini-transcribe",
-    finance: "o4-mini",
-    research: "o3",
-  };
-  return routes[intent] || "gpt-4o-mini";
-}
-
-// --- Reasoning level ---
-export function setReasoning(intent) {
-  if (["planning", "analysis", "finance", "research"].includes(intent)) {
-    return { effort: "high" };
-  } else if (["creative", "code"].includes(intent)) {
-    return { effort: "medium" };
-  }
-  return { effort: "low" };
-}
-
-// --- Execute model ---
-export async function runTask(userInput, tone) {
-  const intent = await detectIntent(userInput);
-  const model = selectModel(intent);
-  const reasoning = setReasoning(intent);
-
-  console.log(`🧭 Detected intent: ${intent} → Model: ${model} (${reasoning.effort})`);
-
-  // Image generation path (placeholder)
-  if (intent === "image") {
-    return {
+    const response = await openai.chat.completions.create({
       model,
-      intent,
-      reasoning: reasoning.effort,
-      response: "🖼️ Image generation handled here (gpt-image-1-mini).",
-      tokensUsed: 0,
-      estimatedCost: getModelPrice(model, "perImage"),
+      messages: [
+        {
+          role: "system",
+          content: "You are NexMind.One — the Oracle of Insight. A sharp, adaptive AI assistant."
+        },
+        { role: "user", content: `${tonePrompt}\n${userInput}` }
+      ],
+      temperature: 0.8
+    });
+
+    const output = response.choices?.[0]?.message?.content || "No response received.";
+    const usage = response.usage || {};
+    const cost = estimateCost(model, usage.prompt_tokens, usage.completion_tokens);
+
+    return {
+      response: output,
+      model,
+      tokensUsed: usage.total_tokens || 0,
+      estimatedCost: cost,
+      reasoning: "medium"
     };
+  } catch (error) {
+    console.error("❌ OpenAI API Error:", error);
+    throw new Error(error.message || "OpenAI API call failed.");
   }
-
-  // Text / reasoning models
-  const response = await openai.responses.create({
-    model,
-    reasoning,
-    input: [
-      {
-        role: "system",
-        content:
-          "You are NexMind.One — the Oracle of Insight. Adaptive, self-optimizing, and context-aware.",
-      },
-      { role: "user", content: `${tone ? tone + "\n" : ""}${userInput}` },
-    ],
-  });
-
-  const output = response.output?.[0]?.content?.[0]?.text ?? "No response.";
-  const usage = response.usage || {};
-  const tokens = usage.total_tokens ?? 0;
-
-  const outputRate = getModelPrice(model, "output");
-  const costEstimate = ((tokens / 1_000_000) * outputRate).toFixed(6);
-
-  return {
-    intent,
-    model,
-    reasoning: reasoning.effort,
-    response: output,
-    tokensUsed: tokens,
-    estimatedCost: costEstimate,
-  };
-}
+      }
