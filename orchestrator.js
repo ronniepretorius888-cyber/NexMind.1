@@ -1,50 +1,106 @@
-// === NexMind.One | AI Task Orchestrator ===
+// orchestrator.js
 import OpenAI from "openai";
-import { estimateCost } from "./pricing.js";
 
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
-// === Main orchestration logic ===
+// Health/usage info returned to admin
+export function healthInfo() {
+  return {
+    openAIKeyLoaded: !!process.env.OPENAI_API_KEY,
+    payfastTestMode: process.env.PAYFAST_TEST_MODE === "true",
+    env: {
+      PORT: process.env.PORT || null,
+    },
+    timestamp: new Date().toISOString(),
+  };
+}
+
+// Model fallbacks (order: cheapest-to-more-powerful as needed)
+const MODEL_CANDIDATES = [
+  "gpt-4o-mini",
+  "gpt-4o",
+  "gpt-4.1-mini",
+  "gpt-4.1"
+];
+
+async function sleep(ms) {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+// runTask: orchestrates a single user request with retries/backoff and fallback
 export async function runTask(userInput, tone = "auto") {
-  console.log(`🧭 Incoming request: ${userInput} | Tone: ${tone}`);
+  if (!process.env.OPENAI_API_KEY) {
+    throw new Error("OpenAI API key missing in environment.");
+  }
 
-  const tonePrompt = {
+  const toneMap = {
     auto: "",
     humorous: "Respond in a funny, witty tone.",
-    supportive: "Respond kindly and reassuringly.",
-    creative: "Respond with creativity and imagination.",
-    informative: "Respond factually and clearly.",
-    neutral: "Respond neutrally and directly."
-  }[tone || "auto"];
+    supportive: "Respond in a kind and supportive tone.",
+    creative: "Respond in a creative, imaginative way.",
+    informative: "Respond in an informative, factual tone.",
+    neutral: "Respond neutrally and clearly.",
+  };
+  const tonePrompt = toneMap[tone] ?? "";
 
-  const model = "gpt-4o-mini"; // best cost/performance balance
+  const systemMsg = "You are NexMind.One — The Oracle of Insight. A smart, adaptive AI companion.";
+  const userMsg = `${tonePrompt}\nUser: ${userInput}`;
 
-  try {
-    const response = await openai.chat.completions.create({
-      model,
-      messages: [
-        {
-          role: "system",
-          content: "You are NexMind.One — the Oracle of Insight. A sharp, adaptive AI assistant."
-        },
-        { role: "user", content: `${tonePrompt}\n${userInput}` }
-      ],
-      temperature: 0.8
-    });
+  // Try each candidate model with up to 3 retries/exponential backoff each
+  for (const model of MODEL_CANDIDATES) {
+    let attempt = 0;
+    const maxAttempts = 3;
+    const baseDelay = 500; // ms
+    while (attempt < maxAttempts) {
+      try {
+        attempt++;
+        // Use Chat Completions endpoint in the style used in this repo
+        const response = await openai.chat.completions.create({
+          model,
+          messages: [
+            { role: "system", content: systemMsg },
+            { role: "user", content: userMsg },
+          ],
+          max_tokens: 800,
+        });
 
-    const output = response.choices?.[0]?.message?.content || "No response received.";
-    const usage = response.usage || {};
-    const cost = estimateCost(model, usage.prompt_tokens, usage.completion_tokens);
+        const output = response.choices?.[0]?.message?.content ?? null;
+        if (!output) {
+          throw new Error("Empty response from OpenAI");
+        }
 
-    return {
-      response: output,
-      model,
-      tokensUsed: usage.total_tokens || 0,
-      estimatedCost: cost,
-      reasoning: "medium"
-    };
-  } catch (error) {
-    console.error("❌ OpenAI API Error:", error);
-    throw new Error(error.message || "OpenAI API call failed.");
+        // Return successful result with metadata
+        return {
+          ok: true,
+          model,
+          response: output,
+        };
+      } catch (err) {
+        const code = err?.status || err?.code || "";
+        // If error indicates quota/rate limit or an auth issue, escalate immediately
+        const msg = (err?.message || String(err)).toLowerCase();
+        if (msg.includes("quota") || msg.includes("exceeded") || code === 429) {
+          throw new Error("429 You exceeded your quota. Check OpenAI plan/billing.");
+        }
+        if (msg.includes("invalid") || msg.includes("auth") || code === 401) {
+          throw new Error("401 Invalid OpenAI key or authentication issue.");
+        }
+
+        // If last attempt for this model, break out to next model
+        if (attempt >= maxAttempts) {
+          console.warn(`⚠️ Model ${model} failed after ${attempt} attempts:`, err.message || err);
+          break;
+        }
+
+        // Wait with exponential backoff and retry
+        const waitMs = baseDelay * Math.pow(2, attempt - 1);
+        console.info(`⏳ Retrying model ${model} in ${waitMs}ms (attempt ${attempt})`);
+        await sleep(waitMs);
+      }
+    }
   }
-}
+
+  throw new Error("All models failed. See logs for details.");
+    }
