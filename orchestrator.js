@@ -47,4 +47,4 @@ export async function runTask(userInput, tone = "auto") {
     console.error("❌ OpenAI API Error:", error);
     throw new Error(error.message || "OpenAI API call failed.");
   }
-      }
+}
