@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Admin — NexMind.One</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 18px; background:#080808; color:#e8fef6; }
+    input, button { padding:8px; margin:6px 0; width:100%; max-width:420px; display:block; }
+    .card { background:#101010; padding:12px; border-radius:8px; margin-top:12px; }
+    pre { white-space:pre-wrap; word-break:break-word; color:#bde; }
+  </style>
+</head>
+<body>
+  <h2>NexMind.One — Admin</h2>
+  <p>Enter ADMIN token (kept secret in Render environment) to view runtime status.</p>
+  <input id="token" type="password" placeholder="ADMIN_TOKEN" />
+  <button id="fetchBtn">Fetch Status</button>
+
+  <div id="out" class="card">
+    <div id="summary">No data fetched yet.</div>
+    <pre id="history"></pre>
+  </div>
+
+  <script>
+    document.getElementById("fetchBtn").addEventListener("click", async () => {
+      const token = document.getElementById("token").value.trim();
+      const out = document.getElementById("out");
+      document.getElementById("summary").innerText = "Fetching...";
+      document.getElementById("history").innerText = "";
+
+      try {
+        const res = await fetch("/api/admin", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-admin-token": token },
+          body: JSON.stringify({}) // token may also be sent in header
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          document.getElementById("summary").innerText = `Error: ${data?.error || res.statusText}`;
+          return;
+        }
+        const status = data.status || {};
+        const counts = status.counts || {};
+        document.getElementById("summary").innerText = `Total calls: ${counts.total || 0}  Success: ${counts.success || 0}  Fail: ${counts.fail || 0}`;
+        document.getElementById("history").innerText = JSON.stringify(status.recent || [], null, 2);
+      } catch (err) {
+        document.getElementById("summary").innerText = "Fetch failed — check network.";
+        document.getElementById("history").innerText = String(err);
+      }
+    });
+  </script>
+</body>
+</html>
