@@ -1,6 +1,33 @@
+# === NexMind.One | Render Blueprint ===
 services:
   - type: web
-    name: NexMind-One
-    env: node
-    buildCommand: npm install
-    startCommand: npm start
+    name: nexmind-one
+    runtime: node
+    region: frankfurt  # or 'oregon' if closer to you
+    plan: free
+    buildCommand: "npm install"
+    startCommand: "npm start"
+    envVars:
+      - key: NODE_VERSION
+        value: 22.16.0
+      - key: OPENAI_API_KEY
+        sync: false  # you add this manually in Render dashboard
+      - key: PAYFAST_MERCHANT_ID
+        sync: false
+      - key: PAYFAST_MERCHANT_KEY
+        sync: false
+      - key: PAYFAST_PUBLIC_KEY
+        sync: false
+      - key: PAYFAST_SECRET_KEY
+        sync: false
+      - key: PAYFAST_TEST_MODE
+        sync: false
+      - key: ADMIN_TOKEN
+        sync: false
+      - key: PORT
+        value: 10000
+    autoDeploy: true
+    scaling:
+      minInstances: 1
+      maxInstances: 2
+      targetMemoryPercent: 80
